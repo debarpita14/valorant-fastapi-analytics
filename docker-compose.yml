@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:15
+    container_name: valorant_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  etl:
+    build:
+      context: ./src
+    container_name: etl_service
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: mydb
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      CSV_FILE_PATH: /src/data/val_round_details_sample.csv
+    volumes:
+      - ./src:/src # 🔥 Mount your data folder correctly
+    depends_on:
+      - db
+    command: ["./wait-for-it.sh", "db:5432", "--", "python", "ingest_data.py"]
+
+  fastapi:
+    build:
+      context: ./app
+    container_name: fastapi_service
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: mydb
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    command: uvicorn main:app --host 0.0.0.0 --reload
+
+volumes:
+  pgdata:
